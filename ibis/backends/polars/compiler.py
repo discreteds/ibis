@@ -722,7 +722,32 @@ def sign(op, **kw):
 def power(op, **kw):
     left = translate(op.left, **kw)
     right = translate(op.right, **kw)
+
+    # Workaround for Polars power overflow bug (https://github.com/pola-rs/polars/issues/25213)
+    # Cast narrow types to wider types to prevent overflow, similar to bitwise shift operations
+
+    left_dtype = op.left.dtype
+    right_dtype = op.right.dtype
+
+    # Handle integer types: cast narrow integers to Int64
+    # Check both signed and unsigned narrow types
+    if (left_dtype.is_int8() or left_dtype.is_int16() or left_dtype.is_int32() or
+        left_dtype.is_uint8() or left_dtype.is_uint16() or left_dtype.is_uint32()):
+        left = left.cast(pl.Int64)
+
+    if (right_dtype.is_int8() or right_dtype.is_int16() or right_dtype.is_int32() or
+        right_dtype.is_uint8() or right_dtype.is_uint16() or right_dtype.is_uint32()):
+        right = right.cast(pl.Int64)
+
+    # Handle float types: cast Float32 to Float64 for precision
+    if left_dtype.is_float32():
+        left = left.cast(pl.Float64)
+
+    if right_dtype.is_float32():
+        right = right.cast(pl.Float64)
+
     return left.pow(right)
+
 
 
 @translate.register(ops.StructField)
